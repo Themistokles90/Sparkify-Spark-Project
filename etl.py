@@ -16,16 +16,47 @@ os.environ['AWS_ACCESS_KEY_ID']=config['AWS_ACCESS_KEY_ID']
 os.environ['AWS_SECRET_ACCESS_KEY']=config['AWS_SECRET_ACCESS_KEY']
 
 
-# This function creates a SparkSession with the configuration that enables access to Amazon S3 storage (by adding the "hadoop-aws" package to the Spark configuration). If an existing SparkSession exists, it returns that, otherwise, it creates a new one.
 def create_spark_session():
+    """
+    Creates a new SparkSession or gets an existing one if available.
+    
+    Returns:
+    - spark (SparkSession): A SparkSession object.
+    
+    Exceptions:
+    - None
+    
+    Restrictions:
+    - None
+    """
     spark = SparkSession \
         .builder \
         .config("spark.jars.packages", "org.apache.hadoop:hadoop-aws:2.7.0") \
         .getOrCreate()
     return spark
 
-# This function reads in song data from the specified input path and extracts the relevant columns to create two tables - "songs" and "artists". It writes these tables to Parquet files, with the "songs" table partitioned by year and artist_id.
+
 def process_song_data(spark, input_data, output_data):
+    """
+    Processes song data from JSON files and creates two new tables: songs and artists.
+    
+    Arguments:
+    - spark (SparkSession): The SparkSession to use.
+    - input_data (str): The file path for the input data (JSON files).
+    - output_data (str): The file path for the output data (Parquet files).
+    
+    Returns:
+    - None
+    
+    Exceptions:
+    - None
+    
+    Restrictions:
+    - The input_data parameter should include a trailing '/'.
+    - The song_data files should be located in subdirectories under the input_data directory.
+    - The output_data parameter should include a trailing '/'.
+    - The songs table will be partitioned by year and artist.
+    """
     # get filepath to song data file
     song_data = input_data + "song_data/*/*/*/*.json"
     
@@ -34,18 +65,41 @@ def process_song_data(spark, input_data, output_data):
 
     # extract columns to create songs table
     songs_table = df.select(["song_id", "title", "artist_id", "year", "duration"])
+    songs_table = songs_table.dropDuplicates()
     
     # write songs table to parquet files partitioned by year and artist
     songs_table.write.partitionBy("year", "artist_id").parquet(output_data + "songs", mode="overwrite")
 
     # extract columns to create artists table
     artists_table = df.selectExpr(["artist_id", "artist_name as name", "artist_location as location", "artist_latitude as latitude", "artist_longitude as longitude"])
+    artists_table = artists_table.dropDuplicates()
     
     # write artists table to parquet files
     artists_table.write.parquet(output_data + "artists", mode="overwrite")
-
-# This function reads in log data from the specified input path and extracts the relevant columns to create three tables - "users", "time" and "songplays". It writes the "users" table to a Parquet file, and the "time" and "songplays" tables are partitioned by year and month before being written to separate Parquet files.    
+   
 def process_log_data(spark, input_data, output_data):
+    """
+    Processes log data from JSON files and creates three new tables: users, time, and songplays.
+    
+    Arguments:
+    - spark (SparkSession): The SparkSession to use.
+    - input_data (str): The file path for the input data (JSON files).
+    - output_data (str): The file path for the output data (Parquet files).
+    
+    Returns:
+    - None
+    
+    Exceptions:
+    - None
+    
+    Restrictions:
+    - The input_data parameter should include a trailing '/'.
+    - The log_data files should be located in a subdirectory named "log_data" under the input_data directory.
+    - The output_data parameter should include a trailing '/'.
+    - The users table will be written to the "user" subdirectory under the output_data directory.
+    - The time table will be partitioned by year and month.
+    - The songplays table will be partitioned by year and month.
+    """
     # get filepath to log data file
     log_data = input_data + "log_data/*.json"
 
@@ -57,6 +111,7 @@ def process_log_data(spark, input_data, output_data):
 
     # extract columns for users table    
     user_table = log_df.selectExpr(["userId as user_id", "firstName as first_name", "lastName as last_name", "gender", "level"])
+    user_table = user_table.dropDuplicates()
     
     # write users table to parquet files
     user_table.write.parquet(output_data + "parquet_log/user", mode="overwrite")
